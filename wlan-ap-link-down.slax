@@ -1,0 +1,64 @@
+
+/*
+ * Author        : 
+ * Script	     : 
+ * Version       : 
+ * Last Modified : 	
+ */
+
+
+version 1.0;
+
+ns junos = "http://xml.juniper.net/junos/*/junos";
+ns xnm = "http://xml.juniper.net/xnm/1.1/xnm";
+ns jcs = "http://xml.juniper.net/junos/commit-scripts/1.0";
+
+import "../import/junos.xsl";
+
+/* Embedded event policy to trigger the script*/
+
+
+var $event-definition = {
+    <event-options> {
+        <policy> {
+            <name> "allowed-mac-link-down";
+	        <events> "SNMP_TRAP_LINK_DOWN";
+            	<then> {
+                  <event-script> {
+                     <name> "wlan-ap-link-down.slax";
+                     <arguments> {
+                         <name>"ifname2";
+                         <value>"{$$.interface-name}";
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/* Global Parameter */
+param $ifname2;
+var $wlan-vlan = "wlan-mgmt";
+
+match / {
+	<event-script-results> {
+
+		/* Open connection to mgd */
+		var $connection = jcs:open();
+
+        var $change = {
+            <configuration> {
+                <vlans> {
+                    <vlan> {
+                    <name> $wlan-vlan;
+                        <interface delete="delete"> {
+                            <name> $ifname2 _ ".0";
+						}
+					}
+				}
+			}
+        }
+		var $results = {call jcs:load-configuration( $connection, $configuration = $change, $action = "replace");};
+    }
+}   

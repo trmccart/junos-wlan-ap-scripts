@@ -1,0 +1,77 @@
+
+/*
+ * Author        : 
+ * Script	     : 
+ * Version       : 
+ * Last Modified : 	
+ */
+
+
+version 1.0;
+
+ns junos = "http://xml.juniper.net/junos/*/junos";
+ns xnm = "http://xml.juniper.net/xnm/1.1/xnm";
+ns jcs = "http://xml.juniper.net/junos/commit-scripts/1.0";
+
+import "../import/junos.xsl";
+
+/* Embedded event policy to trigger the script*/
+
+var $event-definition = {
+    <event-options> {
+        <policy> {
+            <name> "allowed-mac-link-up";
+            <events> "SNMP_TRAP_LINK_UP";
+            <then> {
+                <event-script> {
+                     <name> "wlan-ap-link-up.slax";
+                     <arguments> {
+                         <name>"ifname";
+                         <value>"{$$.interface-name}";
+                    }
+                }
+            }
+        }
+    }
+
+
+
+/* Global Parameters */
+
+var $wlan-vlan = "wlan-mgmt";
+var $lldp_delay = "15";
+param $ifname;
+
+match / {
+	<event-script-results>	{
+
+        /* Open connection to mgd */
+        var $connection = jcs:open();
+
+		/* Delay for LLDP negotiation */
+		expr jcs:sleep($lldp_delay);
+
+		var $lldp_serial = {<command> "show lldp neighbors interface " _ $ifname;};
+		var $result = jcs:invoke( $lldp_serial );
+		var $lldp_med_capabilities = $result/lldp-neighbor-information/lldp-remote-system-capabilities-enabled;
+		
+		if (contains( $lldp_med_capabilities, "WLAN" )) {		
+            var $change = {
+                <configuration> {
+                    <vlans> {
+                        <vlan> {
+                        <name> $wlan-vlan;
+                            <interface> {
+                            <name> $ifname;
+                            }
+                        }
+                    }
+                }
+			}           	
+            var $results = {call jcs:load-configuration( $connection, $configuration = $change, $action = "replace");};
+		}
+	}
+}
+
+
+
